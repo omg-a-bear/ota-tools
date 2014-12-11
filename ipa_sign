@@ -50,6 +50,8 @@ IPA="$(realpath $1)"
 PROVISION="$(realpath "$2")"
 TMP="$(mktemp -d /tmp/resign.$(basename "$IPA" .ipa).XXXXX)"
 IPA_NEW="$(pwd)/$(basename "$IPA" .ipa).resigned.ipa"
+MAC_VERSION="$(sw_vers -productVersion | awk -F '.' '{print $1 "." $2}')"
+USE_RES_RULES=`echo "10.9 < $MAC_VERSION" | bc`
 CLEANUP_TEMP=0 # Do not remove this line or "set -o nounset" will error on checks below
 #CLEANUP_TEMP=1 # Uncomment this line if you want this script to clean up after itself
 cd "$TMP"
@@ -66,7 +68,11 @@ if [[ ! ($INSPECT_ONLY == 1) ]]; then
     echo "Embedding provision       '$(/usr/libexec/PlistBuddy -c "Print :Name" provision.plist)', which supports '$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" provision.plist)'"
     rm -rf Payload/*.app/_CodeSignature Payload/*.app/CodeResources
     cp "$PROVISION" Payload/*.app/embedded.mobileprovision
-    /usr/bin/codesign -f -s "$CERTIFICATE" --resource-rules Payload/*.app/ResourceRules.plist Payload/*.app
+    if [ $USE_RES_RULES -eq 0 ]; then
+        /usr/bin/codesign -f -s "$CERTIFICATE" Payload/*.app
+    else
+        /usr/bin/codesign -f -s "$CERTIFICATE" --resource-rules Payload/*.app/ResourceRules.plist Payload/*.app
+    fi
     zip -qr "$IPA_NEW" Payload
 fi
 [[ $CLEANUP_TEMP -eq 1 ]] && rm -rf "$TMP"
